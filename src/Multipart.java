@@ -1,5 +1,8 @@
+package com.amazonaws.samples;
+
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
@@ -30,53 +33,55 @@ import org.apache.commons.httpclient.methods.ByteArrayRequestEntity;
 import org.apache.commons.httpclient.methods.InputStreamRequestEntity;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.PutMethod;
+import org.apache.commons.io.FileUtils;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Text;
 
-public class Multipart
-{
+import com.google.common.io.Files;
+
+public class Multipart {
 
 	String bucket;
 	String awsAccessKeyId;
 	String secretKey;
 	String key;
-	String localFilePath;
+	InputStream inStream;
+	String fileName;
+	Long fileSize;
+	String tempDirPath;
 	public static int MEGABYTE = 1024 * 1024;
 	private final int chunkSize = 5 * MEGABYTE;
 
-
-	Multipart(final String key, final String bucket, final String awsAccessKeyId, final String secretKey,
-			final String localFilePath)
-	{
+	Multipart(final String key, String fileName,String tempDirPath,final String bucket, final String awsAccessKeyId, final String secretKey,
+			final  InputStream inStream,final Long fileSize) {
 		this.bucket = bucket;
 		this.key = key;
+		this.fileName=fileName;
 		this.awsAccessKeyId = awsAccessKeyId;
 		this.secretKey = secretKey;
-		this.localFilePath = localFilePath;
+		this.inStream = inStream;
+		this.fileSize=fileSize;
+		this.tempDirPath=tempDirPath;
 	}
-
 
 	/**
 	 * Upload file to S3 server in multipal parts
 	 * 
 	 * @throws Exception
 	 */
-	public void upload() throws Exception
-	{
+	public void upload() throws Exception {
 		final String uploadid = initateMultipartUpload();
-		final Map<Integer, String> eTggMap = startS3Tasks(5, uploadid);
+		final Map<Integer, String> eTggMap = creatFileChunks(5, uploadid);
 		completeNotify(eTggMap, uploadid);
 	}
-
 
 	/**
 	 * Initiate multipart upload
 	 * 
 	 * @throws Exception
 	 */
-	private String initateMultipartUpload() throws Exception
-	{
+	private String initateMultipartUpload() throws Exception {
 
 		final String date = getDate();
 		final String data = getInitiateMultiPartSignString(date);
@@ -90,37 +95,27 @@ public class Multipart
 
 		String uploadID = null;
 		final HttpClient client1 = new HttpClient();
-		try
-		{
+		try {
 			final int status1 = client1.executeMethod(filePost1);
 			uploadID = getUploadID(filePost1.getResponseBodyAsStream());
-		}
-		catch ( final HttpException e1 )
-		{
+		} catch (final HttpException e1) {
 			e1.printStackTrace();
-		}
-		catch ( final IOException e1 )
-		{
+		} catch (final IOException e1) {
 			e1.printStackTrace();
-		}
-		finally
-		{
+		} finally {
 			filePost1.releaseConnection();
 		}
 		System.out.println("Multipart upload initilization done, UploadID :" + uploadID);
 		return uploadID;
 	}
 
-
-	private String getDate()
-	{
+	private String getDate() {
 		final String fmt = "EEE, dd MMM yyyy HH:mm:ss ";
 		final SimpleDateFormat df = new SimpleDateFormat(fmt, Locale.US);
 		df.setTimeZone(TimeZone.getTimeZone("GMT"));
 		final String date = df.format(new Date()) + "GMT";
 		return date;
 	}
-
 
 	/**
 	 * parse response and get uploadID out of it
@@ -129,8 +124,7 @@ public class Multipart
 	 * @return string uploadid
 	 * @throws Exception
 	 */
-	private String getUploadID(final InputStream doc) throws Exception
-	{
+	private String getUploadID(final InputStream doc) throws Exception {
 		String uploadID = null;
 		final SAXParserFactory parserfactory = SAXParserFactory.newInstance();
 		parserfactory.setNamespaceAware(false);
@@ -143,49 +137,61 @@ public class Multipart
 	}
 
 
-	/**
-	 * Split file and upload each part
-	 * 
-	 * @param workerCnt
-	 * @param uploadID
-	 * @return map of each etag of each uploaded part
-	 * @throws SignatureException
-	 * @throws IOException
-	 */
-	private Map<Integer, String> startS3Tasks(final int workerCnt, final String uploadID) throws SignatureException,
-			IOException
-	{
+/**
+ * Split file into chunks
+ * @param workerCnt
+ * @param uploadID
+ * @param fileSize
+ * @return
+ * @throws SignatureException
+ * @throws IOException
+ */
+	private Map<Integer, String> creatFileChunks(final int workerCnt, final String uploadID)
+			throws SignatureException, IOException {
 		final int ctr = 0;
 		final Map<Integer, String> uptags = new HashMap<Integer, String>();
-		final Long totalUploads = (new File(localFilePath).length() / chunkSize) + 1;
-		//Apply ur threading logic here to upload each part independently.
-		for ( int i = 1; i <= totalUploads; i++ )
-		{
+		final Long totalUploads = (fileSize / chunkSize) + 1;
+		System.out.println("totalUploads"+totalUploads);
+		// Apply ur threading logic here to upload each part independently.
+		for (int i = 1; i <= totalUploads; i++) {
 			final String etag = uploadPartToS3(uploadID, i);
-			if ( null != etag )
-			{
+			if (null != etag) {
 				uptags.put(i, etag);
-			}
-			else
-			{
+			} else {
 				i--;
 			}
 		}
 		return uptags;
 	}
 
-
+	
+	public File InputStreamToFile( InputStream initialStream) 
+			  throws IOException {
+			  System.out.println("startCopy");
+			    File targetFile = new File(tempDirPath+fileName);
+			 
+			    FileUtils.copyInputStreamToFile(initialStream, targetFile);
+			    initialStream.close();
+			   
+			    System.out.println("copydone");
+			    
+			    return targetFile;
+	}
+	
+	
 	/**
 	 * Upload part to s3 server
 	 * 
-	 * @param uploadId upload id
-	 * @param partNumber part number
+	 * @param uploadId
+	 *            upload id
+	 * @param partNumber
+	 *            part number
 	 * @return eTag for the uploaded part
 	 * @throws SignatureException
 	 * @throws IOException
 	 */
-	private String uploadPartToS3(final String uploadId, final int partNumber) throws SignatureException, IOException
-	{
+	@SuppressWarnings("null")
+	private String uploadPartToS3(final String uploadId, final int partNumber) throws SignatureException, IOException {
 		final int upLoadlimit = chunkSize;
 		final String date = getDate();
 		String upTag = null;
@@ -203,7 +209,7 @@ public class Multipart
 
 		byte[] buffer = null;
 		buffer = new byte[upLoadlimit];
-		final RandomAccessFile randomAccess = new RandomAccessFile(localFilePath, "r");
+		final RandomAccessFile randomAccess = new RandomAccessFile("/tmpconv/"+fileName, "r");
 		randomAccess.seek(startLoc);
 		final int dateRead = randomAccess.read(buffer, 0, upLoadlimit);
 
@@ -214,26 +220,18 @@ public class Multipart
 		filePut.setRequestEntity(inRE);
 
 		final HttpClient client1 = new HttpClient();
-		try
-		{
+		try {
 			final int status1 = client1.executeMethod(filePut);
 			final String response = filePut.getResponseBodyAsString();
 			final Header etag = filePut.getResponseHeader("ETag");
-			if ( null != etag )
-			{
+			if (null != etag) {
 				upTag = etag.getValue();
 			}
-		}
-		catch ( final HttpException e1 )
-		{
+		} catch (final HttpException e1) {
 			e1.printStackTrace();
-		}
-		catch ( final IOException e1 )
-		{
+		} catch (final IOException e1) {
 			e1.printStackTrace();
-		}
-		finally
-		{
+		} finally {
 			filePut.releaseConnection();
 			randomAccess.close();
 			bArryInStream.close();
@@ -242,17 +240,16 @@ public class Multipart
 		return upTag;
 	}
 
-
 	/**
 	 * Tell S3 server that done uploading all parts
 	 * 
-	 * @param eTggMap map of part number vs etag
+	 * @param eTggMap
+	 *            map of part number vs etag
 	 * @throws SignatureException
 	 * @throws ParserConfigurationException
 	 */
-	private void completeNotify(final Map<Integer, String> eTggMap, final String uploadID) throws SignatureException,
-			ParserConfigurationException
-	{
+	private void completeNotify(final Map<Integer, String> eTggMap, final String uploadID)
+			throws SignatureException, ParserConfigurationException {
 		final String postData = BuildXMLData(eTggMap);
 		final String date = getDate();
 		final String data = getMultipartCompleteSignString(date, uploadID);
@@ -269,37 +266,27 @@ public class Multipart
 
 		filePost1.setRequestEntity(new ByteArrayRequestEntity(postData.getBytes()));
 		final HttpClient client1 = new HttpClient();
-		try
-		{
+		try {
 			final int status1 = client1.executeMethod(filePost1);
 			final String response = filePost1.getResponseBodyAsString();
 			System.out.println("Status :" + status1 + " Response:" + response);
-		}
-		catch ( final HttpException e1 )
-		{
+		} catch (final HttpException e1) {
 			e1.printStackTrace();
-		}
-		catch ( final IOException e1 )
-		{
+		} catch (final IOException e1) {
 			e1.printStackTrace();
-		}
-		finally
-		{
+		} finally {
 			filePost1.releaseConnection();
 		}
 
 	}
-
 
 	/**
 	 * @param eTggMap
 	 * @return
 	 * @throws ParserConfigurationException
 	 */
-	private String BuildXMLData(final Map<Integer, String> eTggMap) throws ParserConfigurationException
-	{
-		try
-		{
+	private String BuildXMLData(final Map<Integer, String> eTggMap) throws ParserConfigurationException {
+		try {
 			// ///////////////////////////
 			// Creating an empty XML Document
 
@@ -316,8 +303,7 @@ public class Multipart
 			doc.appendChild(root);
 
 			final int len = eTggMap.size();
-			for ( int i = 1; i <= len; i++ )
-			{
+			for (int i = 1; i <= len; i++) {
 
 				// create child element, add an attribute, and add to root
 				final Element part = doc.createElement("Part");
@@ -354,17 +340,13 @@ public class Multipart
 			System.out.println("Here's the xml:\n\n" + xmlString);
 
 			return xmlString;
-		}
-		catch ( final Exception e )
-		{
+		} catch (final Exception e) {
 			System.out.println(e);
 		}
 		return null;
 	}
 
-
-	private String getInitiateMultiPartSignString(final String date)
-	{
+	private String getInitiateMultiPartSignString(final String date) {
 
 		final StringBuffer buf = new StringBuffer();
 		buf.append("POST").append("\n");
@@ -375,9 +357,7 @@ public class Multipart
 		return buf.toString();
 	}
 
-
-	private String getMultipartUploadSignString(final String date, final int partnumber, final String uploadID)
-	{
+	private String getMultipartUploadSignString(final String date, final int partnumber, final String uploadID) {
 		final StringBuffer buf = new StringBuffer();
 		buf.append("PUT").append("\n");
 		buf.append("\n");
@@ -387,9 +367,7 @@ public class Multipart
 		return buf.toString();
 	}
 
-
-	private String getMultipartCompleteSignString(final String date, final String uploadID)
-	{
+	private String getMultipartCompleteSignString(final String date, final String uploadID) {
 		final StringBuffer buf = new StringBuffer();
 		buf.append("POST").append("\n");
 		buf.append("\n");
