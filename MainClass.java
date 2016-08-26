@@ -23,13 +23,13 @@ public class MainClass
 		final File file = new File(localFilePath);
 		if ( file.exists() )
 		{
-			//Real life fis comes from another program
+			//Real life fis comes from another program and file name along with file size will be supplied
 			FileInputStream fis = new FileInputStream(localFilePath);
 			System.out.println("file.length()="+file.length());
 			
 			final Multipart mp = new Multipart(key,file.getName(),tempDirPath, bucket, awsAccessKeyId, secretKey,fis,file.length());
 			System.out.println("create temporary file");
-			File tempFile=mp.upload(fis);
+			File tempFile=mp.upload();
 			System.out.println("Upload done");
 			System.out.println("start delete");
 			boolean success = tempFile.delete();

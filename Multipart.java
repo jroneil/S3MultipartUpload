@@ -68,8 +68,8 @@ public class Multipart {
 	 * 
 	 * @throws Exception
 	 */
-	public File upload(FileInputStream fis) throws Exception {
-		File tempFile=InputStreamToFile(fis);
+	public File upload() throws Exception {
+		File tempFile=InputStreamToFile(inStream);
 		final String uploadid = initateMultipartUpload();
 		final Map<Integer, String> eTggMap = creatFileChunks(5, uploadid);
 		completeNotify(eTggMap, uploadid);
@@ -141,7 +141,6 @@ public class Multipart {
  * Split file into chunks
  * @param workerCnt
  * @param uploadID
- * @param fileSize
  * @return
  * @throws SignatureException
  * @throws IOException
