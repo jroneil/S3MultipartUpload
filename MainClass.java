@@ -28,16 +28,8 @@ public class MainClass
 			System.out.println("file.length()="+file.length());
 			
 			final Multipart mp = new Multipart(key,file.getName(),tempDirPath, bucket, awsAccessKeyId, secretKey,fis,file.length());
-			System.out.println("create temporary file");
-			File tempFile=mp.upload();
-			System.out.println("Upload done");
-			System.out.println("start delete");
-			boolean success = tempFile.delete();
-			         if (success) {
-			            System.out.println("The file has been successfully deleted"); 
-			         }else{
-			        	   System.out.println("The file delete failed"); 
-			         }
+			mp.upload();
+			
 		}
 	}
 }

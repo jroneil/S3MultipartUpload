@@ -68,12 +68,17 @@ public class Multipart {
 	 * 
 	 * @throws Exception
 	 */
-	public File upload() throws Exception {
+	public void upload() throws Exception {
 		File tempFile=InputStreamToFile(inStream);
 		final String uploadid = initateMultipartUpload();
 		final Map<Integer, String> eTggMap = creatFileChunks(5, uploadid);
 		completeNotify(eTggMap, uploadid);
-		return tempFile;
+		boolean success = tempFile.delete();
+        if (success) {
+           System.out.println("The file has been successfully deleted"); 
+        }else{
+       	   System.out.println("The file delete failed"); 
+        }
 	}
 
 	/**
