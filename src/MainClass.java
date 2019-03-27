@@ -13,9 +13,9 @@ public class MainClass
 	 */
 	public static void main(final String[] args) throws Exception
 	{
-		final String awsAccessKeyId = "AKIAJ5XSHUIXYS23QZ2Q";
-		final String secretKey = "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";
-		final String bucket = "volpe-v";
+		final String awsAccessKeyId = "";
+		final String secretKey = "";
+		final String bucket = "";
 		final String key = "/test2/Wildlife.wmv";
 		final String localFilePath = "/tmp/Wildlife.wmv";
 		final String tempDirPath="/tmpconv/";
